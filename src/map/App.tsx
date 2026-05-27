@@ -11,6 +11,12 @@ import {
 import { slugify } from '../shared/slugify'
 import { CORRECTIONS_NOTICE } from '../shared/corrections-notice'
 import { FieldFeedback } from '../components/FieldFeedback'
+import {
+  canUseVoiceCapture,
+  startVoiceRecording,
+  transcribeVoiceBlob,
+  type VoiceRecorderSession,
+} from './voiceCapture'
 
 type ReactView = 'definitions' | null
 
@@ -22,6 +28,53 @@ interface AgiSource {
 
 let _pendingBeliefSlug: string | null = null
 let _skipNextBeliefZoom = false
+
+type VoiceCommandIntent =
+  | { type: 'search'; query: string }
+  | { type: 'setMode'; mode: 'network' | 'plot' }
+  | { type: 'setView'; view: 'all' | 'orgs' | 'people' }
+  | { type: 'clear' }
+  | { type: 'help' }
+
+function normalizeText(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[.,!?;:]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function parseVoiceCommand(raw: string): VoiceCommandIntent {
+  const text = normalizeText(raw)
+
+  if (!text) return { type: 'help' }
+  if (text === 'help' || text.includes('what can i say') || text.includes('voice help')) return { type: 'help' }
+  if (text.startsWith('switch to plot') || text === 'plot mode' || text === 'show plot')
+    return { type: 'setMode', mode: 'plot' }
+  if (text.startsWith('switch to network') || text === 'network mode' || text === 'show network')
+    return { type: 'setMode', mode: 'network' }
+  if (text === 'show people' || text === 'people only') return { type: 'setView', view: 'people' }
+  if (text === 'show orgs' || text === 'show organizations' || text === 'organizations only')
+    return { type: 'setView', view: 'orgs' }
+  if (text === 'show all' || text === 'all entities') return { type: 'setView', view: 'all' }
+  if (
+    text === 'clear' ||
+    text === 'clear search' ||
+    text === 'reset filters' ||
+    text === 'clear filters' ||
+    text === 'reset map'
+  ) {
+    return { type: 'clear' }
+  }
+
+  const searchPrefixes = ['search for ', 'find ', 'show ', 'go to ', 'open ']
+  for (const prefix of searchPrefixes) {
+    if (text.startsWith(prefix) && text.length > prefix.length) {
+      return { type: 'search', query: text.slice(prefix.length).trim() }
+    }
+  }
+  return { type: 'search', query: text }
+}
 
 export function App() {
   const [reactView, setReactView] = useState<ReactView>(null)
@@ -45,6 +98,11 @@ export function App() {
   const [hiddenClusters, setHiddenClusters] = useState<Set<string>>(new Set())
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
   const [hiddenBeliefValues, setHiddenBeliefValues] = useState<Set<string>>(new Set()) // e.g., "stance:1", "timeline:3"
+  const [voiceStatus, setVoiceStatus] = useState<string>('Voice')
+  const [voiceSupported, setVoiceSupported] = useState<boolean>(false)
+  const [voiceListening, setVoiceListening] = useState<boolean>(false)
+  const recorderSessionRef = useRef<VoiceRecorderSession | null>(null)
+  const voiceListeningRef = useRef(false)
 
   useEffect(() => {
     let engineCleanup: { destroy: () => void } | null = null
@@ -240,6 +298,134 @@ export function App() {
     [beliefsData],
   )
 
+  const applyVoiceIntent = useCallback(
+    (intent: VoiceCommandIntent) => {
+      if (reactView === 'definitions') {
+        setVoiceStatus('Voice commands are disabled in Beliefs view')
+        return
+      }
+
+      const click = (selector: string): boolean => {
+        const el = document.querySelector(selector) as HTMLElement | null
+        if (!el) return false
+        el.click()
+        return true
+      }
+
+      if (intent.type === 'setMode') {
+        const ok = click(`.mode-btn[data-mode="${intent.mode}"]`)
+        setVoiceStatus(ok ? `Switched to ${intent.mode} mode` : `Could not switch to ${intent.mode}`)
+        return
+      }
+
+      if (intent.type === 'setView') {
+        const ok = click(`#network-sub-tabs [data-view="${intent.view}"]`)
+        setVoiceStatus(ok ? `Showing ${intent.view}` : `Could not switch view`)
+        return
+      }
+
+      if (intent.type === 'clear') {
+        const input = document.getElementById('search-input') as HTMLInputElement | null
+        if (input) {
+          input.value = ''
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+        click('#search-clear-btn')
+        setVoiceStatus('Cleared search and highlights')
+        return
+      }
+
+      if (intent.type === 'help') {
+        setVoiceStatus('Try: "find OpenAI", "show people", "switch to plot", "clear search"')
+        return
+      }
+
+      const input = document.getElementById('search-input') as HTMLInputElement | null
+      if (!input) {
+        setVoiceStatus('Search is unavailable right now')
+        return
+      }
+      input.value = intent.query
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.focus()
+      setVoiceStatus(`Searching for "${intent.query}"`)
+    },
+    [reactView],
+  )
+
+  const toggleVoiceRecognition = useCallback(async () => {
+    if (reactView === 'definitions') {
+      setVoiceStatus('Voice commands are disabled in Beliefs view')
+      return
+    }
+
+    if (!canUseVoiceCapture()) {
+      setVoiceStatus('Voice recording is not supported in this browser')
+      return
+    }
+
+    if (voiceListeningRef.current && recorderSessionRef.current) {
+      setVoiceStatus('Finishing recording...')
+      recorderSessionRef.current.stop()
+      return
+    }
+
+    try {
+      setVoiceStatus('Requesting microphone...')
+      const { session, blob } = await startVoiceRecording(() => {
+        setVoiceStatus('Time limit — transcribing...')
+      })
+      recorderSessionRef.current = session
+      voiceListeningRef.current = true
+      setVoiceListening(true)
+      setVoiceStatus('Listening... click mic when done (max 6s)')
+
+      const audioBlob = await blob
+      recorderSessionRef.current = null
+      voiceListeningRef.current = false
+      setVoiceListening(false)
+
+      if (audioBlob.size === 0) {
+        setVoiceStatus('No audio recorded')
+        return
+      }
+
+      setVoiceStatus('Transcribing...')
+      const transcript = await transcribeVoiceBlob(audioBlob)
+      if (!transcript) {
+        setVoiceStatus('No speech detected')
+        return
+      }
+      applyVoiceIntent(parseVoiceCommand(transcript))
+    } catch (err) {
+      recorderSessionRef.current = null
+      voiceListeningRef.current = false
+      setVoiceListening(false)
+      const msg = err instanceof Error ? err.message : 'Voice command failed'
+      if (err instanceof DOMException && err.name === 'NotAllowedError') {
+        setVoiceStatus('Microphone permission denied')
+      } else {
+        setVoiceStatus(msg)
+      }
+    }
+  }, [applyVoiceIntent, reactView])
+
+  useEffect(() => {
+    const supported = canUseVoiceCapture()
+    setVoiceSupported(supported)
+    if (!supported) {
+      setVoiceStatus('Voice recording not supported in this browser')
+    } else {
+      setVoiceStatus('Click mic to speak (server-side Whisper)')
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (recorderSessionRef.current) recorderSessionRef.current.stop()
+    }
+  }, [])
+
   return (
     <>
       <style>{`#source-type-filter { display: none !important; }`}</style>
@@ -418,8 +604,25 @@ export function App() {
                 placeholder="Search entities..."
                 autoComplete="off"
               />
+              <button
+                type="button"
+                className={`voice-btn${voiceListening ? ' active' : ''}`}
+                onClick={() => void toggleVoiceRecognition()}
+                title={
+                  voiceSupported
+                    ? 'Voice: record a command (find OpenAI, show people, switch to plot)'
+                    : 'Voice commands unavailable in this browser'
+                }
+                aria-label="Voice map command"
+                disabled={!voiceSupported}
+              >
+                🎙
+              </button>
               <div className="search-results" id="search-results"></div>
             </div>
+          </div>
+          <div className="voice-status" aria-live="polite">
+            {voiceStatus}
           </div>
         </div>
         {/* Beliefs Search - ABOVE View section, same layout as Network/Plot */}

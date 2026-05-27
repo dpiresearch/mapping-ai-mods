@@ -13,6 +13,7 @@ import 'dotenv/config';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { generateMapData } from './api/export-map.js';
+import { decodeBase64Audio, transcribeWithWhisper, whisperClientError } from './api/voice-transcribe.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -24,7 +25,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 const ADMIN_KEY = process.env.ADMIN_KEY || 'dev-admin-key';
 
@@ -365,6 +366,34 @@ app.post('/admin', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     client.release();
+  }
+});
+
+// ── API: Voice transcribe (OpenAI Whisper) ──
+app.post('/voice-transcribe', async (req, res) => {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return res.status(503).json({
+      error: 'Voice transcription not configured',
+      hint: 'Set OPENAI_API_KEY in .env and restart pnpm run dev',
+    });
+  }
+
+  const { audio, mimeType = 'audio/webm' } = req.body || {};
+  if (!audio) {
+    return res.status(400).json({ error: 'Missing audio' });
+  }
+
+  try {
+    const audioBytes = decodeBase64Audio(audio);
+    if (audioBytes.length === 0) {
+      return res.status(400).json({ error: 'Empty audio' });
+    }
+    const text = await transcribeWithWhisper(audioBytes, mimeType, apiKey);
+    res.json({ text });
+  } catch (err) {
+    console.error('voice-transcribe error:', err);
+    res.status(500).json({ error: whisperClientError(err) });
   }
 });
 

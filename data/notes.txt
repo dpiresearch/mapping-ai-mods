@@ -1,0 +1,4 @@
+curl -o map-data.json https://mapping-ai.org/data/map-data.json; 
+curl -o map-detail.json https://mapping-ai.org/data/map-detail.json;
+
+

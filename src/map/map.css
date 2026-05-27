@@ -797,7 +797,7 @@ body:has(.beliefs-detail-sidebar) .beliefs-zoom-controls {
 }
 .search-input {
   width: 100%;
-  padding: 0.35rem 0.5rem 0.35rem 1.6rem;
+  padding: 0.35rem 2rem 0.35rem 1.6rem;
   font-family: var(--mono);
   font-size: 10px;
   background: var(--input-bg);
@@ -838,6 +838,42 @@ body:has(.beliefs-detail-sidebar) .beliefs-zoom-controls {
 }
 .search-results.visible {
   display: block;
+}
+.voice-btn {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.voice-btn:hover:not(:disabled) {
+  color: var(--text-1);
+  border-color: var(--line);
+}
+.voice-btn.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.voice-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.voice-status {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  margin-top: 0.25rem;
 }
 .search-result {
   padding: 0.35rem 0.5rem;

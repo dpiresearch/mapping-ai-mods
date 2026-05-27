@@ -18,6 +18,9 @@ export interface Env {
   ANTHROPIC_API_KEY?: string
   ANTHROPIC_SEMANTIC_SEARCH_KEY?: string
 
+  // OpenAI API key (map voice commands via Whisper)
+  OPENAI_API_KEY?: string
+
   // CloudFront domain for thumbnail URLs (legacy, replaced by R2 public URL)
   THUMBNAIL_PUBLIC_URL?: string
 
