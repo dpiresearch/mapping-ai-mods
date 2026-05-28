@@ -57,6 +57,13 @@ body {
   z-index: 100;
   transition: background 0.3s;
 }
+.nav-start {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  flex: 1;
+}
 .nav-brand {
   font-family: var(--mono);
   font-size: 12px;
@@ -64,6 +71,61 @@ body {
   text-transform: uppercase;
   color: var(--text-1);
   text-decoration: none;
+  flex-shrink: 0;
+}
+.nav-voice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+  max-width: 420px;
+}
+.nav-voice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  padding: 0.25rem 0.55rem;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--input-bg);
+  color: var(--text-1);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nav-voice-btn:hover:not(:disabled) {
+  border-color: var(--text-3);
+}
+.nav-voice-btn.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.nav-voice-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.nav-voice-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+.nav-voice-label {
+  line-height: 1;
+}
+.nav-voice-status {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .nav-links {
   display: flex;
@@ -797,7 +859,7 @@ body:has(.beliefs-detail-sidebar) .beliefs-zoom-controls {
 }
 .search-input {
   width: 100%;
-  padding: 0.35rem 2rem 0.35rem 1.6rem;
+  padding: 0.35rem 0.5rem 0.35rem 1.6rem;
   font-family: var(--mono);
   font-size: 10px;
   background: var(--input-bg);
@@ -838,42 +900,6 @@ body:has(.beliefs-detail-sidebar) .beliefs-zoom-controls {
 }
 .search-results.visible {
   display: block;
-}
-.voice-btn {
-  position: absolute;
-  right: 0.25rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.voice-btn:hover:not(:disabled) {
-  color: var(--text-1);
-  border-color: var(--line);
-}
-.voice-btn.active {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.voice-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-.voice-status {
-  font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: 0.02em;
-  color: var(--text-3);
-  margin-top: 0.25rem;
 }
 .search-result {
   padding: 0.35rem 0.5rem;
@@ -1311,6 +1337,13 @@ body:has(.beliefs-detail-sidebar) .beliefs-zoom-controls {
 @media (max-width: 600px) {
   .site-nav {
     padding: 0 1rem;
+  }
+  .nav-voice-status {
+    display: none;
+  }
+  .nav-voice {
+    max-width: none;
+    flex: 0;
   }
   .theme-toggle {
     position: static;
@@ -2457,7 +2490,7 @@ body.react-view-active #network-sub-tabs,
 body.react-view-active #plot-sub-tabs,
 body.react-view-active #search-mode-controls,
 body.react-view-active #entity-count,
-body.react-view-active .controls .control-group:first-child {
+body.react-view-active #map-search-control-group {
   display: none !important;
 }
 body.react-view-active #beliefs-sub-tabs {

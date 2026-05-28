@@ -2240,7 +2240,7 @@ export function initMapEngine() {
       .querySelectorAll('#plot-sub-tabs [data-entity]')
       .forEach((b) => b.classList.toggle('active', b.dataset.entity === axis2dEntityType))
     // Hide the small search box in search mode (we have the big one)
-    const smallSearchGroup = document.querySelector('.controls .control-group:first-child')
+    const smallSearchGroup = document.getElementById('map-search-control-group')
     if (smallSearchGroup) smallSearchGroup.style.display = isSearch ? 'none' : ''
     document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === viewMode))
     document
@@ -2290,7 +2290,7 @@ export function initMapEngine() {
     document.getElementById('search-mode-controls').style.display = ''
     document.getElementById('stance-legend').style.display = 'none'
     document.getElementById('network-sub-tabs').style.display = 'none'
-    const smallSearchGroup = document.querySelector('.controls .control-group:first-child')
+    const smallSearchGroup = document.getElementById('map-search-control-group')
     if (smallSearchGroup) smallSearchGroup.style.display = 'none'
   }
   const phMap0 = { orgs: 'Search orgs...', people: 'Search people...', resources: 'Search resources...' }
@@ -6719,7 +6719,239 @@ ${dots}
     })
   }
 
-  window.__mapEngine = { showDetail, allData, navigateToEntity: navigateToEntityById, afterSimulationSettles }
+  function findEntityByNameHint(nameHint) {
+    const query = expandQuery(nameHint.trim())
+    const allEntities = [
+      ...allData.organizations.map((d) => ({ ...d, entityType: 'organization' })),
+      ...allData.people.filter((d) => d.category).map((d) => ({ ...d, entityType: 'person' })),
+      ...(allData.resources || []).map((d) => ({ ...d, name: d.title, entityType: 'resource' })),
+    ]
+    const scored = allEntities
+      .map((d) => ({ ...d, score: scoreEntity(d, query) }))
+      .filter((d) => d.score > 0)
+      .sort((a, b) => b.score - a.score)
+    return scored[0] || null
+  }
+
+  function entityDisplayName(entity) {
+    if (!entity) return ''
+    return entity.entityType === 'resource' ? entity.title || entity.name || '' : entity.name || entity.title || ''
+  }
+
+  function matchesCategoryHint(entity, categoryHint) {
+    if (!categoryHint) return true
+    const hint = categoryHint.toLowerCase()
+    const raw = entity.category || ''
+    const cat = (normalizeCategory(raw) || raw).toLowerCase()
+    return cat.includes(hint) || hint.includes(cat)
+  }
+
+  function applyVoiceShowSubgraph(anchorName, matchNames, includeAnchor) {
+    clearSearch()
+    const matchSet = new Set(matchNames)
+    const oneHopSet = includeAnchor && anchorName ? new Set([anchorName]) : new Set()
+
+    searchVisibleNames = new Set([...matchSet, ...oneHopSet])
+    searchFilterActive = true
+    window._searchMatchSet = matchSet
+    window._searchOneHopSet = oneHopSet
+    searchModeMatches = [...matchNames]
+
+    render()
+
+    requestAnimationFrame(() => {
+      reapplySearchHighlighting()
+      const anchorNode = _canvasNodes.find((n) => n.name === anchorName)
+      if (anchorNode) {
+        selectedNode = anchorNode
+        const zoomTarget = _canvasSel || d3.select('#map-container svg')
+        const mapEl = document.getElementById('map-container')
+        if (zoomTarget && mapEl) {
+          const k = 2.2
+          zoomTarget
+            .transition()
+            .duration(500)
+            .call(
+              zoomBehavior.transform,
+              d3.zoomIdentity
+                .translate(mapEl.clientWidth / 2 - k * anchorNode.x, mapEl.clientHeight / 2 - k * anchorNode.y)
+                .scale(k),
+            )
+        }
+      }
+    })
+  }
+
+  function executeVoiceShowQuery(spec) {
+    if (!spec || !spec.type) return { ok: false, message: 'Invalid voice query' }
+
+    if (spec.type === 'text') {
+      const input = document.getElementById('search-input')
+      if (!input) return { ok: false, message: 'Search unavailable' }
+      clearSearchModeHighlighting()
+      input.value = spec.query
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.focus()
+      return { ok: true, message: `Searching for "${spec.query}"` }
+    }
+
+    if (spec.type === 'find') {
+      const entity = findEntityByNameHint(spec.name)
+      if (!entity) {
+        const input = document.getElementById('search-input')
+        if (input) {
+          clearSearchModeHighlighting()
+          input.value = spec.name
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+          input.focus()
+        }
+        return { ok: true, message: `Searching for "${spec.name}"` }
+      }
+
+      clearSearchModeHighlighting()
+      const displayName = entityDisplayName(entity)
+      if (entity.entityType === 'organization') {
+        document.querySelector('[data-view="orgs"]')?.click()
+      } else if (entity.entityType === 'person') {
+        document.querySelector('[data-view="people"]')?.click()
+      } else if (entity.entityType === 'resource') {
+        document.querySelector('[data-view="resources"]')?.click()
+      }
+
+      setTimeout(() => {
+        const nodes = _canvasNodes.length > 0 ? _canvasNodes : []
+        const target = nodes.find((n) => n.name === displayName)
+        if (target) {
+          showDetail(target, nodes)
+          selectedNode = target
+          if (viewMode !== 'search' && currentView === 'all') dimUnconnected(target)
+          else highlightNodes([displayName])
+          const zoomTarget = _canvasSel || d3.select('#map-container svg')
+          const mapEl = document.getElementById('map-container')
+          if (zoomTarget && mapEl) {
+            const k = 3
+            zoomTarget
+              .transition()
+              .duration(500)
+              .call(
+                zoomBehavior.transform,
+                d3.zoomIdentity
+                  .translate(mapEl.clientWidth / 2 - k * target.x, mapEl.clientHeight / 2 - k * target.y)
+                  .scale(k),
+              )
+          }
+        }
+      }, 200)
+
+      return { ok: true, message: `Showing ${displayName}` }
+    }
+
+    if (spec.type === 'connections') {
+      const anchor = findEntityByNameHint(spec.anchorName)
+      if (!anchor) return { ok: false, message: `Could not find "${spec.anchorName}"` }
+
+      const anchorName = entityDisplayName(anchor)
+      let items = buildConnections(anchor)
+
+      if (spec.entityTypes && spec.entityTypes.length > 0) {
+        const allowed = new Set(spec.entityTypes)
+        items = items.filter((item) => allowed.has(item.entityType))
+      }
+
+      if (spec.categoryHint) {
+        items = items.filter((item) => matchesCategoryHint(item.entity, spec.categoryHint))
+      }
+
+      const matchNames = items.map((item) => item.name)
+      if (matchNames.length === 0) {
+        const typeHint =
+          spec.entityTypes && spec.entityTypes.length === 1 ? spec.entityTypes[0] + ' ' : ''
+        return { ok: false, message: `No ${typeHint}connections found for ${anchorName}` }
+      }
+
+      if (spec.entityTypes && spec.entityTypes.length === 1) {
+        const t = spec.entityTypes[0]
+        if (t === 'person') document.querySelector('[data-view="people"]')?.click()
+        else if (t === 'organization') document.querySelector('[data-view="orgs"]')?.click()
+        else if (t === 'resource') document.querySelector('[data-view="resources"]')?.click()
+      } else {
+        document.querySelector('[data-view="all"]')?.click()
+      }
+
+      const includeAnchor = spec.includeAnchor !== false
+      setTimeout(
+        () => applyVoiceShowSubgraph(anchorName, matchNames, includeAnchor),
+        150,
+      )
+
+      const typeLabel =
+        spec.entityTypes && spec.entityTypes.length > 0
+          ? spec.entityTypes
+              .map((t) => (t === 'organization' ? 'organizations' : t === 'person' ? 'people' : 'resources'))
+              .join(', ')
+          : 'connections'
+      return {
+        ok: true,
+        message: `${matchNames.length} ${typeLabel} linked to ${anchorName}`,
+      }
+    }
+
+    return { ok: false, message: 'Unknown voice query' }
+  }
+
+  function clearVoiceShow() {
+    clearSearchModeHighlighting()
+    const input = document.getElementById('search-input')
+    if (input) {
+      input.value = ''
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    highlightNodes([])
+  }
+
+  function setViewMode(mode) {
+    if (mode !== 'network' && mode !== 'plot') return false
+    viewMode = mode
+    localStorage.setItem('mapMode', mode)
+    clearSearchModeHighlighting()
+    document.querySelectorAll('.mode-btn[data-mode]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === viewMode)
+    })
+    applyViewState()
+    window.dispatchEvent(new CustomEvent('map-engine-mode', { detail: { mode } }))
+    return true
+  }
+
+  function setSubView(subView) {
+    if (!['all', 'orgs', 'people', 'resources'].includes(subView)) return false
+    if (viewMode !== 'network') setViewMode('network')
+    currentView = subView
+    localStorage.setItem('mapSubView', subView)
+    document.querySelectorAll('#network-sub-tabs [data-view]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.view === subView)
+    })
+    const phMap = { orgs: 'Search orgs...', people: 'Search people...', resources: 'Search resources...' }
+    const searchInput = document.getElementById('search-input')
+    if (searchInput) searchInput.placeholder = phMap[currentView] || 'Search entities...'
+    buildFilters()
+    buildStanceLegend()
+    updateSourceTypeVisibility()
+    updateSecondaryFilterVisibility()
+    clearSearchModeHighlighting()
+    render()
+    return true
+  }
+
+  window.__mapEngine = {
+    showDetail,
+    allData,
+    navigateToEntity: navigateToEntityById,
+    afterSimulationSettles,
+    executeVoiceShowQuery,
+    clearVoiceShow,
+    setViewMode,
+    setSubView,
+  }
 
   return {
     destroy() {

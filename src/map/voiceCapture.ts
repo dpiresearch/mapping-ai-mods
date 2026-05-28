@@ -16,6 +16,39 @@ export function canUseVoiceCapture(): boolean {
   )
 }
 
+/** Decode recorded blob to PCM16 mono 24 kHz for OpenAI Realtime API. */
+async function blobToPcm16Mono24k(blob: Blob): Promise<ArrayBuffer> {
+  const arrayBuffer = await blob.arrayBuffer()
+  const audioCtx = new AudioContext({ sampleRate: 24000 })
+  try {
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0))
+    const durationSec = decoded.duration
+    const length = Math.max(1, Math.ceil(durationSec * 24000))
+    const offline = new OfflineAudioContext(1, length, 24000)
+    const source = offline.createBufferSource()
+    source.buffer = decoded
+    source.connect(offline.destination)
+    source.start(0)
+    const rendered = await offline.startRendering()
+    const channel = rendered.getChannelData(0)
+    const pcm = new Int16Array(channel.length)
+    for (let i = 0; i < channel.length; i++) {
+      const sample = Math.max(-1, Math.min(1, channel[i] ?? 0))
+      pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff
+    }
+    return pcm.buffer
+  } finally {
+    await audioCtx.close()
+  }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
+  return btoa(binary)
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -92,7 +125,8 @@ export function startVoiceRecording(
 }
 
 export async function transcribeVoiceBlob(blob: Blob): Promise<string> {
-  const audio = await blobToBase64(blob)
+  const pcmBuffer = await blobToPcm16Mono24k(blob)
+  const audio = arrayBufferToBase64(pcmBuffer)
   if (!audio) throw new Error('Empty recording')
 
   const res = await fetch('/api/voice-transcribe', {
@@ -100,7 +134,8 @@ export async function transcribeVoiceBlob(blob: Blob): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       audio,
-      mimeType: blob.type || 'audio/webm',
+      mimeType: 'audio/pcm',
+      sampleRate: 24000,
     }),
   })
 

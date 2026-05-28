@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useMapVoiceFill } from './useMapVoiceFill'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HowItWorks } from '../components/HowItWorks'
 import { Navigation } from '../components/Navigation'
@@ -18,6 +19,7 @@ const queryClient = new QueryClient({
 
 export function App() {
   const [showHowItWorks, setShowHowItWorks] = useState(false)
+  useMapVoiceFill()
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -17,6 +17,7 @@ import {
   transcribeVoiceBlob,
   type VoiceRecorderSession,
 } from './voiceCapture'
+import { executeVoiceCommand, parseVoiceCommand } from './voiceCommands'
 
 type ReactView = 'definitions' | null
 
@@ -28,53 +29,6 @@ interface AgiSource {
 
 let _pendingBeliefSlug: string | null = null
 let _skipNextBeliefZoom = false
-
-type VoiceCommandIntent =
-  | { type: 'search'; query: string }
-  | { type: 'setMode'; mode: 'network' | 'plot' }
-  | { type: 'setView'; view: 'all' | 'orgs' | 'people' }
-  | { type: 'clear' }
-  | { type: 'help' }
-
-function normalizeText(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[.,!?;:]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function parseVoiceCommand(raw: string): VoiceCommandIntent {
-  const text = normalizeText(raw)
-
-  if (!text) return { type: 'help' }
-  if (text === 'help' || text.includes('what can i say') || text.includes('voice help')) return { type: 'help' }
-  if (text.startsWith('switch to plot') || text === 'plot mode' || text === 'show plot')
-    return { type: 'setMode', mode: 'plot' }
-  if (text.startsWith('switch to network') || text === 'network mode' || text === 'show network')
-    return { type: 'setMode', mode: 'network' }
-  if (text === 'show people' || text === 'people only') return { type: 'setView', view: 'people' }
-  if (text === 'show orgs' || text === 'show organizations' || text === 'organizations only')
-    return { type: 'setView', view: 'orgs' }
-  if (text === 'show all' || text === 'all entities') return { type: 'setView', view: 'all' }
-  if (
-    text === 'clear' ||
-    text === 'clear search' ||
-    text === 'reset filters' ||
-    text === 'clear filters' ||
-    text === 'reset map'
-  ) {
-    return { type: 'clear' }
-  }
-
-  const searchPrefixes = ['search for ', 'find ', 'show ', 'go to ', 'open ']
-  for (const prefix of searchPrefixes) {
-    if (text.startsWith(prefix) && text.length > prefix.length) {
-      return { type: 'search', query: text.slice(prefix.length).trim() }
-    }
-  }
-  return { type: 'search', query: text }
-}
 
 export function App() {
   const [reactView, setReactView] = useState<ReactView>(null)
@@ -162,6 +116,27 @@ export function App() {
     }
     document.addEventListener('click', handleEngineModeClick)
     return () => document.removeEventListener('click', handleEngineModeClick)
+  }, [])
+
+  // Keep Network sub-tabs (All/Orgs/People) visible only in Network mode (engine also toggles this)
+  useEffect(() => {
+    if (reactView) return
+    const networkTabs = document.getElementById('network-sub-tabs')
+    const plotTabs = document.getElementById('plot-sub-tabs')
+    if (networkTabs) networkTabs.style.display = engineMode === 'network' ? 'flex' : 'none'
+    if (plotTabs) plotTabs.style.display = engineMode === 'plot' ? 'flex' : 'none'
+  }, [engineMode, reactView])
+
+  useEffect(() => {
+    function onEngineMode(e: Event) {
+      const mode = (e as CustomEvent<{ mode: 'network' | 'plot' }>).detail?.mode
+      if (mode === 'network' || mode === 'plot') {
+        setEngineMode(mode)
+        setReactView(null)
+      }
+    }
+    window.addEventListener('map-engine-mode', onEngineMode)
+    return () => window.removeEventListener('map-engine-mode', onEngineMode)
   }, [])
 
   useEffect(() => {
@@ -299,56 +274,14 @@ export function App() {
   )
 
   const applyVoiceIntent = useCallback(
-    (intent: VoiceCommandIntent) => {
+    async (rawTranscript: string) => {
       if (reactView === 'definitions') {
         setVoiceStatus('Voice commands are disabled in Beliefs view')
         return
       }
-
-      const click = (selector: string): boolean => {
-        const el = document.querySelector(selector) as HTMLElement | null
-        if (!el) return false
-        el.click()
-        return true
-      }
-
-      if (intent.type === 'setMode') {
-        const ok = click(`.mode-btn[data-mode="${intent.mode}"]`)
-        setVoiceStatus(ok ? `Switched to ${intent.mode} mode` : `Could not switch to ${intent.mode}`)
-        return
-      }
-
-      if (intent.type === 'setView') {
-        const ok = click(`#network-sub-tabs [data-view="${intent.view}"]`)
-        setVoiceStatus(ok ? `Showing ${intent.view}` : `Could not switch view`)
-        return
-      }
-
-      if (intent.type === 'clear') {
-        const input = document.getElementById('search-input') as HTMLInputElement | null
-        if (input) {
-          input.value = ''
-          input.dispatchEvent(new Event('input', { bubbles: true }))
-        }
-        click('#search-clear-btn')
-        setVoiceStatus('Cleared search and highlights')
-        return
-      }
-
-      if (intent.type === 'help') {
-        setVoiceStatus('Try: "find OpenAI", "show people", "switch to plot", "clear search"')
-        return
-      }
-
-      const input = document.getElementById('search-input') as HTMLInputElement | null
-      if (!input) {
-        setVoiceStatus('Search is unavailable right now')
-        return
-      }
-      input.value = intent.query
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-      input.focus()
-      setVoiceStatus(`Searching for "${intent.query}"`)
+      const intent = parseVoiceCommand(rawTranscript)
+      const result = await executeVoiceCommand(intent)
+      setVoiceStatus(result.message)
     },
     [reactView],
   )
@@ -396,7 +329,7 @@ export function App() {
         setVoiceStatus('No speech detected')
         return
       }
-      applyVoiceIntent(parseVoiceCommand(transcript))
+      applyVoiceIntent(transcript)
     } catch (err) {
       recorderSessionRef.current = null
       voiceListeningRef.current = false
@@ -416,7 +349,7 @@ export function App() {
     if (!supported) {
       setVoiceStatus('Voice recording not supported in this browser')
     } else {
-      setVoiceStatus('Click mic to speak (server-side Whisper)')
+      setVoiceStatus('Say "show OpenAI" to search, or a category like "Frontier Lab"')
     }
   }, [])
 
@@ -430,9 +363,33 @@ export function App() {
     <>
       <style>{`#source-type-filter { display: none !important; }`}</style>
       <nav className="site-nav">
-        <a className="nav-brand" href="/">
-          Mapping AI
-        </a>
+        <div className="nav-start">
+          <a className="nav-brand" href="/">
+            Mapping AI
+          </a>
+          <div className="nav-voice" id="voice-command-bar">
+            <button
+              type="button"
+              className={`nav-voice-btn${voiceListening ? ' active' : ''}`}
+              onClick={() => void toggleVoiceRecognition()}
+              title={
+                voiceSupported
+                  ? 'Voice: "show OpenAI" searches; category names filter; open Add to Map then speak into a field'
+                  : 'Voice commands unavailable in this browser'
+              }
+              aria-label="Voice map command"
+              disabled={!voiceSupported}
+            >
+              <span className="nav-voice-icon" aria-hidden="true">
+                🎙
+              </span>
+              <span className="nav-voice-label">{voiceListening ? 'Listening…' : 'Voice'}</span>
+            </button>
+            <span className="nav-voice-status" aria-live="polite">
+              {voiceStatus}
+            </span>
+          </div>
+        </div>
         <div className="nav-links">
           <a href="/">Background</a>
           <a href="/contribute">Contribute</a>
@@ -562,7 +519,7 @@ export function App() {
         Controls
       </button>
       <div className="controls">
-        <div className="control-group" style={{ position: 'relative', zIndex: 100 }}>
+        <div className="control-group" id="map-search-control-group" style={{ position: 'relative', zIndex: 100 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
             <button
               id="sidebar-collapse"
@@ -604,106 +561,7 @@ export function App() {
                 placeholder="Search entities..."
                 autoComplete="off"
               />
-              <button
-                type="button"
-                className={`voice-btn${voiceListening ? ' active' : ''}`}
-                onClick={() => void toggleVoiceRecognition()}
-                title={
-                  voiceSupported
-                    ? 'Voice: record a command (find OpenAI, show people, switch to plot)'
-                    : 'Voice commands unavailable in this browser'
-                }
-                aria-label="Voice map command"
-                disabled={!voiceSupported}
-              >
-                🎙
-              </button>
               <div className="search-results" id="search-results"></div>
-            </div>
-          </div>
-          <div className="voice-status" aria-live="polite">
-            {voiceStatus}
-          </div>
-        </div>
-        {/* Beliefs Search - ABOVE View section, same layout as Network/Plot */}
-        <div
-          className="control-group"
-          id="beliefs-search"
-          style={{ display: reactView === 'definitions' ? undefined : 'none', position: 'relative', zIndex: 100 }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
-            <button
-              id="beliefs-sidebar-collapse"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-3)',
-                padding: '2px',
-                flexShrink: 0,
-                lineHeight: 1,
-              }}
-              title="Collapse sidebar"
-              onClick={() => {
-                const controls = document.querySelector('.controls')
-                const sidebarToggle = document.getElementById('sidebar-toggle')
-                if (controls && sidebarToggle) {
-                  controls.classList.add('collapsed')
-                  sidebarToggle.classList.add('visible')
-                }
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <polyline points="9,2 4,7 9,12" />
-              </svg>
-            </button>
-            <div className="search-box">
-              <svg
-                className="search-icon"
-                xmlns="http://www.w3.org/2000/svg"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                className="search-input"
-                id="beliefs-search-input"
-                type="text"
-                placeholder="Search AGI definitions..."
-                autoComplete="off"
-                value={beliefsSearchQuery}
-                onChange={(e) => handleBeliefsSearch(e.target.value)}
-              />
-              {beliefsSearchQuery && (
-                <button
-                  style={{
-                    position: 'absolute',
-                    right: '8px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-3)',
-                    padding: '2px',
-                    fontSize: '14px',
-                  }}
-                  onClick={() => {
-                    setBeliefsSearchQuery('')
-                    setBeliefsHighlightedId(null)
-                  }}
-                >
-                  ×
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -807,6 +665,297 @@ export function App() {
               <button id="search-clear-btn" className="search-clear-btn">
                 Back to full map
               </button>
+            </div>
+          </div>
+        </div>
+        <div className="control-group" id="category-filters">
+          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Category</span>
+            <span
+              className="filter-reset"
+              id="category-reset"
+              style={{
+                fontSize: '8px',
+                textTransform: 'none',
+                letterSpacing: 0,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontWeight: 400,
+              }}
+            >
+              select all
+            </span>
+          </h3>
+          <div
+            id="cluster-excluded-count"
+            style={{ fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', display: 'none' }}
+          ></div>
+          <div className="filter-chips" id="category-chips"></div>
+        </div>
+        <div className="control-group" id="verification-filter" style={{ display: 'none' }}>
+          <h3 className="verification-heading-wrap">
+            Data Quality
+            <span className="verification-info-trigger">
+              ?
+              <span className="verification-info-tooltip">
+                Based on automated external source checks per field. Verified = all checked fields confirmed. Partial =
+                &gt;50% confirmed. Unverified = &lt;50% confirmed.
+              </span>
+            </span>
+          </h3>
+          <div className="verification-legend-items" id="verification-legend-items">
+            <div className="verification-legend-item active" data-status="verified">
+              <span className="verification-legend-dot" style={{ background: '#16a34a' }}></span>
+              <span>Verified</span>
+            </div>
+            <div className="verification-legend-item active" data-status="partial">
+              <span className="verification-legend-dot" style={{ background: '#d97706' }}></span>
+              <span>Partial</span>
+            </div>
+            <div className="verification-legend-item active" data-status="unverified">
+              <span className="verification-legend-dot" style={{ background: '#dc2626' }}></span>
+              <span>Unverified</span>
+            </div>
+            <div className="verification-legend-item active" data-status="none">
+              <span
+                className="verification-legend-dot"
+                style={{ background: 'transparent', border: '1px solid var(--text-3)' }}
+              ></span>
+              <span>
+                <em>No data</em>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="control-group" id="stance-legend">
+          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <select
+                id="belief-dim-select"
+                style={{
+                  fontFamily: 'var(--mono)',
+                  fontSize: '9px',
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  background: 'transparent',
+                  color: 'var(--text-1)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  padding: 0,
+                  margin: 0,
+                }}
+              >
+                <option value="regulatory_stance">Regulatory Stance</option>
+                <option value="agi_timeline">AGI Timeline</option>
+                <option value="ai_risk_level">AI Risk Level</option>
+              </select>
+              <span className="verification-info-trigger">
+                ?
+                <span className="verification-info-tooltip" style={{ width: '220px' }}>
+                  Scores are weighted averages from crowdsourced submissions. Self-reports (&#x25B2;&#x25B2;) weigh 10x,
+                  connectors 2x, external 1x. Field feedback votes (&#x25B2;+1, &#x25BC;-1) help confirm or flag values.
+                  Orgs temporarily do not display belief stances while we improve data quality.
+                </span>
+              </span>
+            </span>
+            <span
+              className="filter-reset"
+              id="stance-reset"
+              style={{
+                fontSize: '8px',
+                textTransform: 'none',
+                letterSpacing: 0,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontWeight: 400,
+              }}
+            >
+              select all
+            </span>
+          </h3>
+          <div className="stance-legend-items" id="stance-legend-items"></div>
+        </div>
+        <div className="control-group" id="secondary-category-filter" style={{ display: 'none' }}>
+          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Category
+            <span
+              className="filter-reset"
+              id="secondary-category-reset"
+              style={{
+                fontSize: '8px',
+                textTransform: 'none',
+                letterSpacing: 0,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontWeight: 400,
+              }}
+            >
+              select all
+            </span>
+          </h3>
+          <div className="filter-chips" id="secondary-category-chips"></div>
+        </div>
+        <div className="control-group" id="source-type-filter">
+          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Source
+            <span
+              className="filter-reset"
+              id="source-reset"
+              style={{
+                fontSize: '8px',
+                textTransform: 'none',
+                letterSpacing: 0,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontWeight: 400,
+              }}
+            >
+              select all
+            </span>
+          </h3>
+          <div className="source-type-items" id="source-type-items">
+            <div className="source-type-item" data-source="self">
+              <span className="source-type-icon">&#9679;</span>
+              <span>Self-added</span>
+            </div>
+            <div className="source-type-item" data-source="connector">
+              <span className="source-type-icon">&#9680;</span>
+              <span>Connector</span>
+            </div>
+            <div className="source-type-item" data-source="external">
+              <span className="source-type-icon">&#9675;</span>
+              <span>External</span>
+            </div>
+          </div>
+        </div>
+        <div className="control-group" id="axis-controls" style={{ display: 'none' }}>
+          <h3>Dimensions</h3>
+          <div className="view-toggles" id="axis-mode-toggles">
+            <button className="view-btn" data-mode="1d">
+              1D
+            </button>
+            <button className="view-btn active" data-mode="2d">
+              2D
+            </button>
+          </div>
+          <h3 style={{ marginTop: '12px' }}>X Axis</h3>
+          <select
+            id="axis-x-select"
+            style={{
+              width: '100%',
+              padding: '4px 6px',
+              background: 'var(--bg-input, var(--bg-panel))',
+              color: 'var(--text-1)',
+              border: '1px solid var(--line)',
+              borderRadius: '4px',
+              fontFamily: 'var(--mono)',
+              fontSize: '11px',
+            }}
+          >
+            <option value="regulatory_stance">Regulatory Stance</option>
+            <option value="agi_timeline">AGI Timeline</option>
+            <option value="ai_risk_level">AI Risk Level</option>
+          </select>
+          <div id="axis-y-group">
+            <h3 style={{ marginTop: '12px' }}>Y Axis</h3>
+            <select
+              id="axis-y-select"
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                background: 'var(--bg-input, var(--bg-panel))',
+                color: 'var(--text-1)',
+                border: '1px solid var(--line)',
+                borderRadius: '4px',
+                fontFamily: 'var(--mono)',
+                fontSize: '11px',
+              }}
+            >
+              <option value="agi_timeline">AGI Timeline</option>
+              <option value="regulatory_stance">Regulatory Stance</option>
+              <option value="ai_risk_level">AI Risk Level</option>
+            </select>
+          </div>
+          <p id="axis-excluded-msg" style={{ fontSize: '11px', opacity: 0.6, marginTop: '10px', lineHeight: 1.4 }}></p>
+        <div
+          className="control-group"
+          id="beliefs-search"
+          style={{ display: reactView === 'definitions' ? undefined : 'none', position: 'relative', zIndex: 100 }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap' }}>
+            <button
+              id="beliefs-sidebar-collapse"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-3)',
+                padding: '2px',
+                flexShrink: 0,
+                lineHeight: 1,
+              }}
+              title="Collapse sidebar"
+              onClick={() => {
+                const controls = document.querySelector('.controls')
+                const sidebarToggle = document.getElementById('sidebar-toggle')
+                if (controls && sidebarToggle) {
+                  controls.classList.add('collapsed')
+                  sidebarToggle.classList.add('visible')
+                }
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polyline points="9,2 4,7 9,12" />
+              </svg>
+            </button>
+            <div className="search-box">
+              <svg
+                className="search-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                className="search-input"
+                id="beliefs-search-input"
+                type="text"
+                placeholder="Search AGI definitions..."
+                autoComplete="off"
+                value={beliefsSearchQuery}
+                onChange={(e) => handleBeliefsSearch(e.target.value)}
+              />
+              {beliefsSearchQuery && (
+                <button
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-3)',
+                    padding: '2px',
+                    fontSize: '14px',
+                  }}
+                  onClick={() => {
+                    setBeliefsSearchQuery('')
+                    setBeliefsHighlightedId(null)
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1019,216 +1168,6 @@ export function App() {
             </div>
           )}
         </div>
-        <div className="control-group" id="category-filters">
-          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Category</span>
-            <span
-              className="filter-reset"
-              id="category-reset"
-              style={{
-                fontSize: '8px',
-                textTransform: 'none',
-                letterSpacing: 0,
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                fontWeight: 400,
-              }}
-            >
-              select all
-            </span>
-          </h3>
-          <div
-            id="cluster-excluded-count"
-            style={{ fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', display: 'none' }}
-          ></div>
-          <div className="filter-chips" id="category-chips"></div>
-        </div>
-        <div className="control-group" id="verification-filter" style={{ display: 'none' }}>
-          <h3 className="verification-heading-wrap">
-            Data Quality
-            <span className="verification-info-trigger">
-              ?
-              <span className="verification-info-tooltip">
-                Based on automated external source checks per field. Verified = all checked fields confirmed. Partial =
-                &gt;50% confirmed. Unverified = &lt;50% confirmed.
-              </span>
-            </span>
-          </h3>
-          <div className="verification-legend-items" id="verification-legend-items">
-            <div className="verification-legend-item active" data-status="verified">
-              <span className="verification-legend-dot" style={{ background: '#16a34a' }}></span>
-              <span>Verified</span>
-            </div>
-            <div className="verification-legend-item active" data-status="partial">
-              <span className="verification-legend-dot" style={{ background: '#d97706' }}></span>
-              <span>Partial</span>
-            </div>
-            <div className="verification-legend-item active" data-status="unverified">
-              <span className="verification-legend-dot" style={{ background: '#dc2626' }}></span>
-              <span>Unverified</span>
-            </div>
-            <div className="verification-legend-item active" data-status="none">
-              <span
-                className="verification-legend-dot"
-                style={{ background: 'transparent', border: '1px solid var(--text-3)' }}
-              ></span>
-              <span>
-                <em>No data</em>
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="control-group" id="stance-legend">
-          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <select
-                id="belief-dim-select"
-                style={{
-                  fontFamily: 'var(--mono)',
-                  fontSize: '9px',
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  background: 'transparent',
-                  color: 'var(--text-1)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  padding: 0,
-                  margin: 0,
-                }}
-              >
-                <option value="regulatory_stance">Regulatory Stance</option>
-                <option value="agi_timeline">AGI Timeline</option>
-                <option value="ai_risk_level">AI Risk Level</option>
-              </select>
-              <span className="verification-info-trigger">
-                ?
-                <span className="verification-info-tooltip" style={{ width: '220px' }}>
-                  Scores are weighted averages from crowdsourced submissions. Self-reports (&#x25B2;&#x25B2;) weigh 10x,
-                  connectors 2x, external 1x. Field feedback votes (&#x25B2;+1, &#x25BC;-1) help confirm or flag values.
-                  Orgs temporarily do not display belief stances while we improve data quality.
-                </span>
-              </span>
-            </span>
-            <span
-              className="filter-reset"
-              id="stance-reset"
-              style={{
-                fontSize: '8px',
-                textTransform: 'none',
-                letterSpacing: 0,
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                fontWeight: 400,
-              }}
-            >
-              select all
-            </span>
-          </h3>
-          <div className="stance-legend-items" id="stance-legend-items"></div>
-        </div>
-        <div className="control-group" id="secondary-category-filter" style={{ display: 'none' }}>
-          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Category
-            <span
-              className="filter-reset"
-              id="secondary-category-reset"
-              style={{
-                fontSize: '8px',
-                textTransform: 'none',
-                letterSpacing: 0,
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                fontWeight: 400,
-              }}
-            >
-              select all
-            </span>
-          </h3>
-          <div className="filter-chips" id="secondary-category-chips"></div>
-        </div>
-        <div className="control-group" id="source-type-filter">
-          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Source
-            <span
-              className="filter-reset"
-              id="source-reset"
-              style={{
-                fontSize: '8px',
-                textTransform: 'none',
-                letterSpacing: 0,
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                fontWeight: 400,
-              }}
-            >
-              select all
-            </span>
-          </h3>
-          <div className="source-type-items" id="source-type-items">
-            <div className="source-type-item" data-source="self">
-              <span className="source-type-icon">&#9679;</span>
-              <span>Self-added</span>
-            </div>
-            <div className="source-type-item" data-source="connector">
-              <span className="source-type-icon">&#9680;</span>
-              <span>Connector</span>
-            </div>
-            <div className="source-type-item" data-source="external">
-              <span className="source-type-icon">&#9675;</span>
-              <span>External</span>
-            </div>
-          </div>
-        </div>
-        <div className="control-group" id="axis-controls" style={{ display: 'none' }}>
-          <h3>Dimensions</h3>
-          <div className="view-toggles" id="axis-mode-toggles">
-            <button className="view-btn" data-mode="1d">
-              1D
-            </button>
-            <button className="view-btn active" data-mode="2d">
-              2D
-            </button>
-          </div>
-          <h3 style={{ marginTop: '12px' }}>X Axis</h3>
-          <select
-            id="axis-x-select"
-            style={{
-              width: '100%',
-              padding: '4px 6px',
-              background: 'var(--bg-input, var(--bg-panel))',
-              color: 'var(--text-1)',
-              border: '1px solid var(--line)',
-              borderRadius: '4px',
-              fontFamily: 'var(--mono)',
-              fontSize: '11px',
-            }}
-          >
-            <option value="regulatory_stance">Regulatory Stance</option>
-            <option value="agi_timeline">AGI Timeline</option>
-            <option value="ai_risk_level">AI Risk Level</option>
-          </select>
-          <div id="axis-y-group">
-            <h3 style={{ marginTop: '12px' }}>Y Axis</h3>
-            <select
-              id="axis-y-select"
-              style={{
-                width: '100%',
-                padding: '4px 6px',
-                background: 'var(--bg-input, var(--bg-panel))',
-                color: 'var(--text-1)',
-                border: '1px solid var(--line)',
-                borderRadius: '4px',
-                fontFamily: 'var(--mono)',
-                fontSize: '11px',
-              }}
-            >
-              <option value="agi_timeline">AGI Timeline</option>
-              <option value="regulatory_stance">Regulatory Stance</option>
-              <option value="ai_risk_level">AI Risk Level</option>
-            </select>
-          </div>
-          <p id="axis-excluded-msg" style={{ fontSize: '11px', opacity: 0.6, marginTop: '10px', lineHeight: 1.4 }}></p>
         </div>
         <div className="control-group">
           <button
@@ -1799,7 +1738,12 @@ export function App() {
             <button id="contribute-close">Close &#10005;</button>
           </div>
         </div>
-        <iframe src="/contribute.html" style={{ width: '100%', flex: 1, border: 'none' }} title="Contribute"></iframe>
+        <iframe
+          id="contribute-iframe"
+          src="/contribute.html"
+          style={{ width: '100%', flex: 1, border: 'none' }}
+          title="Contribute"
+        ></iframe>
       </div>
     </>
   )

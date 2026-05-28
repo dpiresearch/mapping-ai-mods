@@ -6,7 +6,12 @@
  */
 import type { Env } from './_shared/env.ts'
 import { jsonResponse, optionsResponse } from './_shared/cors.ts'
-import { decodeBase64Audio, transcribeWithWhisper, whisperClientError } from '../../api/voice-transcribe.ts'
+import {
+  decodeBase64Audio,
+  transcribeVoiceAudio,
+  voiceTranscribeClientError,
+  getVoiceTranscribeBackend,
+} from '../../api/voice-transcribe.ts'
 
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context
@@ -59,10 +64,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return jsonResponse({ error: 'Audio too large (max 12MB)' }, request, 413)
     }
 
-    const text = await transcribeWithWhisper(audioBytes, mimeType, apiKey)
-    return jsonResponse({ text }, request)
+    const text = await transcribeVoiceAudio(audioBytes, mimeType, apiKey)
+    return jsonResponse({ text, backend: getVoiceTranscribeBackend() }, request)
   } catch (err) {
     console.error('voice-transcribe error:', err)
-    return jsonResponse({ error: whisperClientError(err) }, request, 500)
+    return jsonResponse({ error: voiceTranscribeClientError(err) }, request, 500)
   }
 }

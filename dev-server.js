@@ -13,7 +13,12 @@ import 'dotenv/config';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { generateMapData } from './api/export-map.js';
-import { decodeBase64Audio, transcribeWithWhisper, whisperClientError } from './api/voice-transcribe.ts';
+import {
+  decodeBase64Audio,
+  transcribeVoiceAudio,
+  voiceTranscribeClientError,
+  getVoiceTranscribeBackend,
+} from './api/voice-transcribe.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -389,11 +394,11 @@ app.post('/voice-transcribe', async (req, res) => {
     if (audioBytes.length === 0) {
       return res.status(400).json({ error: 'Empty audio' });
     }
-    const text = await transcribeWithWhisper(audioBytes, mimeType, apiKey);
-    res.json({ text });
+    const text = await transcribeVoiceAudio(audioBytes, mimeType, apiKey);
+    res.json({ text, backend: getVoiceTranscribeBackend() });
   } catch (err) {
     console.error('voice-transcribe error:', err);
-    res.status(500).json({ error: whisperClientError(err) });
+    res.status(500).json({ error: voiceTranscribeClientError(err) });
   }
 });
 
