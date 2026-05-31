@@ -1,7 +1,7 @@
 /**
  * Deep Quality Review — comprehensive LLM pass on EVERY entry
  *
- * Uses Claude Haiku to verify and fix:
+ * Uses OpenAI (gpt-4o-mini by default) to verify and fix:
  * - Every person: name, category, title, primary_org, location, stance, timeline, risk, threats, influence, twitter
  * - Every org: name, category, website, location, funding, stance, risk, influence
  * - Every resource: title, author, type, URL validity, year, category, key_argument
@@ -12,28 +12,26 @@
  * Usage: node scripts/deep-quality-review.js
  */
 import pg from 'pg';
-import Anthropic from '@anthropic-ai/sdk';
 import 'dotenv/config';
+import { openaiChatCompletion } from './lib/openai-chat.js';
 
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 let apiCalls = 0;
 let inputTokens = 0;
 let outputTokens = 0;
 let fixes = 0;
 
-async function askClaude(prompt) {
+async function askLlm(prompt) {
   apiCalls++;
-  const msg = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2000,
+  const { text, usage } = await openaiChatCompletion({
     messages: [{ role: 'user', content: prompt }],
+    maxTokens: 2000,
   });
-  inputTokens += msg.usage.input_tokens;
-  outputTokens += msg.usage.output_tokens;
-  return msg.content[0].text;
+  inputTokens += usage.input_tokens;
+  outputTokens += usage.output_tokens;
+  return text;
 }
 
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -68,7 +66,7 @@ async function reviewPeople() {
       }));
 
       try {
-        const response = await askClaude(`You are a fact-checker reviewing a database of people in the US AI policy landscape. For each person below, verify the data and return corrections as a JSON array. ONLY include entries that need fixing.
+        const response = await askLlm(`You are a fact-checker reviewing a database of people in the US AI policy landscape. For each person below, verify the data and return corrections as a JSON array. ONLY include entries that need fixing.
 
 ALLOWED VALUES:
 - category: Executive, Researcher, Policymaker, Investor, Organizer, Journalist, Academic, Cultural figure
@@ -151,7 +149,7 @@ async function reviewOrgs() {
       }));
 
       try {
-        const response = await askClaude(`You are fact-checking a database of organizations in the US AI policy landscape. Return corrections as a JSON array.
+        const response = await askLlm(`You are fact-checking a database of organizations in the US AI policy landscape. Return corrections as a JSON array.
 
 ALLOWED VALUES:
 - category: Frontier Lab, AI Safety/Alignment, Think Tank/Policy Org, Government/Agency, Academic, VC/Capital/Philanthropy, Labor/Civil Society, Ethics/Bias/Rights, Media/Journalism, Political Campaign/PAC
@@ -225,7 +223,7 @@ async function reviewResources() {
       }));
 
       try {
-        const response = await askClaude(`You are fact-checking a database of AI policy resources. Return corrections as JSON array.
+        const response = await askLlm(`You are fact-checking a database of AI policy resources. Return corrections as JSON array.
 
 RULES:
 - resource_type must match content: Essay, Book, Report, Podcast, Video, Website, Academic Paper, News Article, Substack/Newsletter
@@ -283,7 +281,7 @@ Return [] if all correct.`);
 
 async function main() {
   console.log('═══════════════════════════════════════');
-  console.log('  DEEP QUALITY REVIEW (Claude Haiku)');
+  console.log('  DEEP QUALITY REVIEW (OpenAI)');
   console.log('═══════════════════════════════════════\n');
 
   await reviewPeople();
@@ -294,7 +292,7 @@ async function main() {
   console.log(`API calls: ${apiCalls}`);
   console.log(`Tokens: ${inputTokens} in, ${outputTokens} out`);
   console.log(`Fixes: ${fixes}`);
-  console.log(`Cost: $${((inputTokens * 0.25 + outputTokens * 1.25) / 1000000).toFixed(3)}`);
+  console.log(`Cost: $${((inputTokens * 0.15 + outputTokens * 0.6) / 1000000).toFixed(3)} (gpt-4o-mini est.)`);
   console.log('═══════════════════════════════════════');
 
   // Export and deploy

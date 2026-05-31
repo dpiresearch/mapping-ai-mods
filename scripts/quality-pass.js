@@ -1,7 +1,7 @@
 /**
- * LLM Quality Pass — Uses Claude Haiku to review and fix every entity's fields.
+ * LLM Quality Pass — Uses OpenAI to review and fix every entity's fields.
  *
- * For each entity, sends current data to Haiku and asks it to:
+ * For each entity, sends current data to the model and asks it to:
  * 1. Verify/correct the regulatory stance classification
  * 2. Fix any misclassified resource types
  * 3. Write proper 1-2 sentence key_arguments
@@ -15,12 +15,11 @@
  *   node scripts/quality-pass.js --all                # everything (~$0.70)
  */
 import pg from 'pg';
-import Anthropic from '@anthropic-ai/sdk';
 import 'dotenv/config';
+import { openaiChatCompletion } from './lib/openai-chat.js';
 
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const args = process.argv.slice(2);
 const pilot = args.includes('--pilot');
@@ -33,16 +32,15 @@ let inputTokens = 0;
 let outputTokens = 0;
 let fixes = 0;
 
-async function askHaiku(prompt) {
+async function askLlm(prompt) {
   apiCalls++;
-  const msg = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 500,
+  const { text, usage } = await openaiChatCompletion({
     messages: [{ role: 'user', content: prompt }],
+    maxTokens: 500,
   });
-  inputTokens += msg.usage.input_tokens;
-  outputTokens += msg.usage.output_tokens;
-  return msg.content[0].text;
+  inputTokens += usage.input_tokens;
+  outputTokens += usage.output_tokens;
+  return text;
 }
 
 // ── Fix Resources ──
@@ -58,7 +56,7 @@ async function fixResources() {
 
     for (const r of resources.rows) {
       try {
-        const response = await askHaiku(`You are reviewing a database entry for an AI policy resource. Fix any errors and fill missing fields. Return ONLY a JSON object with corrected values. Do not include any explanation.
+        const response = await askLlm(`You are reviewing a database entry for an AI policy resource. Fix any errors and fill missing fields. Return ONLY a JSON object with corrected values. Do not include any explanation.
 
 Current data:
 - title: ${r.title}
@@ -132,7 +130,7 @@ async function fixPeople() {
 
     for (const p of people.rows) {
       try {
-        const response = await askHaiku(`You are reviewing a database entry for a person in the US AI policy landscape. Fix any errors. Return ONLY a JSON object with corrected values.
+        const response = await askLlm(`You are reviewing a database entry for a person in the US AI policy landscape. Fix any errors. Return ONLY a JSON object with corrected values.
 
 Current data:
 - name: ${p.name}
@@ -204,7 +202,7 @@ async function fixOrgs() {
 
     for (const o of orgs.rows) {
       try {
-        const response = await askHaiku(`You are reviewing a database entry for an organization in the US AI policy landscape. Fix any errors. Return ONLY a JSON object.
+        const response = await askLlm(`You are reviewing a database entry for an organization in the US AI policy landscape. Fix any errors. Return ONLY a JSON object.
 
 Current data:
 - name: ${o.name}
@@ -254,7 +252,7 @@ Return JSON: {"funding_model": "Philanthropic", "location": "Washington, DC"}`);
 }
 
 async function main() {
-  console.log('LLM Quality Pass (Claude Haiku)\n');
+  console.log('LLM Quality Pass (OpenAI)\n');
 
   if (doResources) await fixResources();
   if (doPeople) await fixPeople();
@@ -264,7 +262,7 @@ async function main() {
   console.log(`API calls: ${apiCalls}`);
   console.log(`Tokens: ${inputTokens} in, ${outputTokens} out`);
   console.log(`Fixes applied: ${fixes}`);
-  console.log(`Est. cost: $${((inputTokens * 0.25 + outputTokens * 1.25) / 1000000).toFixed(3)}`);
+  console.log(`Est. cost: $${((inputTokens * 0.15 + outputTokens * 0.6) / 1000000).toFixed(3)} (gpt-4o-mini est.)`);
 
   await pool.end();
 }

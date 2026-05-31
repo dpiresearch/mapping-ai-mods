@@ -1,0 +1,746 @@
+{
+  "run_at": "2026-05-30T17:16:14.942Z",
+  "process": "scripts/deep-quality-review.js (same prompt/logic)",
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-4o-mini"
+  },
+  "exa": {
+    "used": false,
+    "reason": "EXA_API_KEY not set in .env"
+  },
+  "database": {
+    "writes": false,
+    "reason": "DATABASE_URL not set; local map JSON only"
+  },
+  "fields_verified": [
+    "category",
+    "title",
+    "primary_org",
+    "location",
+    "regulatory_stance",
+    "agi_timeline",
+    "ai_risk_level",
+    "threat_models",
+    "influence_type",
+    "twitter"
+  ],
+  "entities": [
+    {
+      "id": 1,
+      "name": "Stuart Russell"
+    },
+    {
+      "id": 2,
+      "name": "Chuck Schumer"
+    },
+    {
+      "id": 3,
+      "name": "Marc Andreessen"
+    },
+    {
+      "id": 4,
+      "name": "Casey Newton"
+    },
+    {
+      "id": 7,
+      "name": "Brian Schatz"
+    },
+    {
+      "id": 8,
+      "name": "Dario Amodei"
+    },
+    {
+      "id": 10,
+      "name": "Alexandria Ocasio-Cortez"
+    },
+    {
+      "id": 11,
+      "name": "Marsha Blackburn"
+    },
+    {
+      "id": 12,
+      "name": "Anton Korinek"
+    },
+    {
+      "id": 13,
+      "name": "Daniela Amodei"
+    }
+  ],
+  "batches": [
+    {
+      "batch_index": 1,
+      "entity_ids": [
+        1,
+        2,
+        3,
+        4,
+        7
+      ],
+      "tokens": {
+        "input_tokens": 2301,
+        "output_tokens": 367
+      },
+      "raw_response_length": 1487,
+      "correction_count": 7,
+      "per_entity": [
+        {
+          "id": 1,
+          "name": "Stuart Russell",
+          "status": "no_correction_suggested",
+          "input_snapshot": {
+            "id": 1,
+            "name": "Stuart Russell",
+            "category": "Academic",
+            "title": "Professor of Computer Science, UC Berkeley / Director, Center for Human-Compatible AI / President, International Association for Safe & Ethical AI",
+            "primary_org": "UC Berkeley",
+            "location": "Berkeley, CA",
+            "regulatory_stance": "Restrictive",
+            "agi_timeline": "Unknown",
+            "ai_risk_level": "Existential",
+            "threat_models": "Existential risk, Loss of control, Weapons proliferation",
+            "influence_type": "Researcher/analyst, Advisor/strategist, Narrator",
+            "twitter": "@humancompatible",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": "verified",
+              "title": {
+                "status": "unverified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "verified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "unverified"
+              },
+              "ai_risk_level": "verified",
+              "agi_timeline": "verified",
+              "threat_models": "verified",
+              "evidence_source": "verified",
+              "regulatory_stance": "verified",
+              "regulatory_stance_detail": "verified"
+            },
+            "notes_snippet": "Stuart Russell is a Distinguished Professor of Computer Science at the University of California, Berkeley and holds the Smith-Zadeh Chair in Engineering. He co-authored the textbook 'Artificial Intell"
+          },
+          "corrections": []
+        },
+        {
+          "id": 2,
+          "name": "Chuck Schumer",
+          "status": "needs_correction",
+          "input_snapshot": {
+            "id": 2,
+            "name": "Chuck Schumer",
+            "category": "Policymaker",
+            "title": "U.S. Senator, NY; Senate Majority Leader (2021-2025), Senate Minority Leader (2017-2021, 2025-present)",
+            "primary_org": "United States Senate",
+            "location": "New York, NY",
+            "regulatory_stance": "Moderate",
+            "agi_timeline": "MISSING",
+            "ai_risk_level": "Serious",
+            "threat_models": "Labor displacement, Misinformation, Democratic erosion",
+            "influence_type": "Decision-maker, Connector/convener, Organizer/advocate",
+            "twitter": "@SenSchumer",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": "verified",
+              "title": {
+                "status": "verified"
+              },
+              "website": {
+                "status": "verified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "verified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "verified"
+              },
+              "ai_risk_level": "verified",
+              "agi_timeline": "verified",
+              "threat_models": "verified",
+              "evidence_source": "verified",
+              "regulatory_stance": "verified",
+              "regulatory_stance_detail": "verified"
+            },
+            "notes_snippet": "Chuck Schumer is a Democratic U.S. Senator from New York who has served since 1999. He was Senate Majority Leader from 2021 to 2025 and currently serves as Senate Minority Leader. He led a bipartisan "
+          },
+          "corrections": [
+            {
+              "id": 2,
+              "agi_timeline": "Unknown",
+              "reason": "The AGI timeline for Chuck Schumer is marked as 'MISSING', which should be categorized as 'Unknown'."
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "Marc Andreessen",
+          "status": "needs_correction",
+          "input_snapshot": {
+            "id": 3,
+            "name": "Marc Andreessen",
+            "category": "Investor",
+            "title": "Co-Founder & General Partner, Andreessen Horowitz (a16z)",
+            "primary_org": "Andreessen Horowitz (a16z)",
+            "location": "San Francisco, CA",
+            "regulatory_stance": "Light-touch",
+            "agi_timeline": "Already here",
+            "ai_risk_level": "Overstated",
+            "threat_models": "Power concentration, Misinformation, Cybersecurity",
+            "influence_type": "Funder/investor, Narrator, Decision-maker, Advisor/strategist",
+            "twitter": "@a16z",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": "verified",
+              "title": {
+                "status": "verified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "unverified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "verified"
+              },
+              "ai_risk_level": "verified",
+              "agi_timeline": "verified",
+              "threat_models": "verified",
+              "evidence_source": "verified",
+              "regulatory_stance": "verified",
+              "regulatory_stance_detail": "verified"
+            },
+            "notes_snippet": "Marc Andreessen is co-founder of Netscape and co-founder and general partner of Andreessen Horowitz (a16z). He co-authored Mosaic, the first widely used web browser with a graphical user interface. In"
+          },
+          "corrections": [
+            {
+              "id": 3,
+              "location": "San Francisco, CA",
+              "reason": "The location status is marked as 'unverified', but it should be verified as he is indeed associated with San Francisco."
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "Casey Newton",
+          "status": "needs_correction",
+          "input_snapshot": {
+            "id": 4,
+            "name": "Casey Newton",
+            "category": "Journalist",
+            "title": "Founder of Platformer and Co-host of Hard Fork podcast",
+            "primary_org": "Platformer",
+            "location": "San Francisco, CA",
+            "regulatory_stance": "Targeted",
+            "agi_timeline": "5-10 years",
+            "ai_risk_level": "Serious",
+            "threat_models": "Misinformation, Democratic erosion, Power concentration",
+            "influence_type": "Narrator, Connector/convener",
+            "twitter": "@CaseyNewton",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": {
+                "status": "unverified"
+              },
+              "title": {
+                "status": "unverified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "verified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "unverified"
+              },
+              "ai_risk_level": {
+                "status": "verified"
+              },
+              "agi_timeline": {
+                "status": "unverified"
+              },
+              "threat_models": {
+                "status": "unverified"
+              },
+              "evidence_source": {
+                "status": "unverified"
+              },
+              "regulatory_stance": {
+                "status": "unverified"
+              },
+              "regulatory_stance_detail": {
+                "status": "unverified"
+              }
+            },
+            "notes_snippet": "Casey Newton is the founder and editor of Platformer, an independent publication devoted to exploring the intersection of technology and democracy. He co-hosts Hard Fork, a podcast about the future th"
+          },
+          "corrections": [
+            {
+              "id": 4,
+              "agi_timeline": "5-10 years",
+              "reason": "The AGI timeline status is 'unverified' but should be verified considering Casey Newton’s insights on the timeline."
+            },
+            {
+              "id": 4,
+              "threat_models": "Misinformation, Democratic erosion, Power concentration",
+              "reason": "The threat models status is 'unverified' but should be verified based on his work, which focuses on these areas."
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "name": "Brian Schatz",
+          "status": "needs_correction",
+          "input_snapshot": {
+            "id": 7,
+            "name": "Brian Schatz",
+            "category": "Policymaker",
+            "title": "U.S. Senator, HI - Senior Senator",
+            "primary_org": "United States Senate",
+            "location": "Honolulu, HI",
+            "regulatory_stance": "Targeted",
+            "agi_timeline": "MISSING",
+            "ai_risk_level": "Serious",
+            "threat_models": "Misinformation, Democratic erosion, Power concentration",
+            "influence_type": "Decision-maker, Connector/convener",
+            "twitter": "@SenBrianSchatz",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": {
+                "status": "unverified"
+              },
+              "title": {
+                "status": "verified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "verified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "verified"
+              },
+              "ai_risk_level": {
+                "status": "unverified"
+              },
+              "agi_timeline": {
+                "status": "verified"
+              },
+              "threat_models": {
+                "status": "unverified"
+              },
+              "evidence_source": {
+                "status": "unverified"
+              },
+              "regulatory_stance": {
+                "status": "verified"
+              },
+              "regulatory_stance_detail": {
+                "status": "unverified"
+              }
+            },
+            "notes_snippet": "Brian Schatz is Hawaii's senior United States Senator who has served since 2012 and focuses on helping workers, veterans, and families while leading key legislation on health care, climate change, and"
+          },
+          "corrections": [
+            {
+              "id": 7,
+              "agi_timeline": "Unknown",
+              "reason": "The AGI timeline for Brian Schatz is marked as 'MISSING', which should be categorized as 'Unknown'."
+            },
+            {
+              "id": 7,
+              "ai_risk_level": "Serious",
+              "reason": "The AI risk level status is marked as 'unverified' but should be verified based on his public positions on the risks."
+            },
+            {
+              "id": 7,
+              "threat_models": "Misinformation, Democratic erosion, Power concentration",
+              "reason": "The threat models status is 'unverified' but should be verified given his focus on key policy issues."
+            }
+          ]
+        }
+      ],
+      "unparsed_corrections": []
+    },
+    {
+      "batch_index": 2,
+      "entity_ids": [
+        8,
+        10,
+        11,
+        12,
+        13
+      ],
+      "tokens": {
+        "input_tokens": 2337,
+        "output_tokens": 102
+      },
+      "raw_response_length": 374,
+      "correction_count": 2,
+      "per_entity": [
+        {
+          "id": 8,
+          "name": "Dario Amodei",
+          "status": "no_correction_suggested",
+          "input_snapshot": {
+            "id": 8,
+            "name": "Dario Amodei",
+            "category": "Executive",
+            "title": "CEO and Co-founder",
+            "primary_org": "Anthropic",
+            "location": "San Francisco, CA",
+            "regulatory_stance": "Targeted",
+            "agi_timeline": "2-3 years",
+            "ai_risk_level": "Catastrophic",
+            "threat_models": "Loss of control, Weapons, Power concentration",
+            "influence_type": "Decision-maker, Builder, Researcher/analyst, Narrator",
+            "twitter": "@DarioAmodei",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": "verified",
+              "title": {
+                "status": "verified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "unverified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "verified"
+              },
+              "ai_risk_level": "verified",
+              "agi_timeline": "verified",
+              "threat_models": "verified",
+              "evidence_source": "verified",
+              "regulatory_stance": "verified",
+              "regulatory_stance_detail": "verified"
+            },
+            "notes_snippet": "Dario Amodei is an American artificial intelligence researcher and entrepreneur who co-founded Anthropic in 2021 with his sister Daniela Amodei. He serves as the CEO of Anthropic, the company behind t"
+          },
+          "corrections": []
+        },
+        {
+          "id": 10,
+          "name": "Alexandria Ocasio-Cortez",
+          "status": "needs_correction",
+          "input_snapshot": {
+            "id": 10,
+            "name": "Alexandria Ocasio-Cortez",
+            "category": "Policymaker",
+            "title": "U.S. Representative, NY-14",
+            "primary_org": "U.S. House of Representatives",
+            "location": "New York, NY",
+            "regulatory_stance": "Restrictive",
+            "agi_timeline": "MISSING",
+            "ai_risk_level": "Serious",
+            "threat_models": "Labor displacement, Environmental, Power concentration",
+            "influence_type": "Decision-maker, Organizer/advocate",
+            "twitter": "@AOC",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": {
+                "status": "unverified"
+              },
+              "title": {
+                "status": "verified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "verified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "verified"
+              },
+              "ai_risk_level": {
+                "status": "verified"
+              },
+              "agi_timeline": {
+                "status": "unverified"
+              },
+              "threat_models": {
+                "status": "verified"
+              },
+              "evidence_source": {
+                "status": "verified"
+              },
+              "regulatory_stance": {
+                "status": "verified"
+              },
+              "regulatory_stance_detail": {
+                "status": "unverified"
+              }
+            },
+            "notes_snippet": "Rep. Alexandria Ocasio-Cortez (D-N.Y.) announced the Artificial Intelligence (AI) Data Center Moratorium Act on March 25, 2026, alongside Sen. Bernie Sanders. She announced on Friday that she is jumpi"
+          },
+          "corrections": [
+            {
+              "id": 10,
+              "agi_timeline": "Unknown",
+              "reason": "agi_timeline is listed as 'MISSING', which is invalid. The correct value should be 'Unknown'."
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "name": "Marsha Blackburn",
+          "status": "needs_correction",
+          "input_snapshot": {
+            "id": 11,
+            "name": "Marsha Blackburn",
+            "category": "Policymaker",
+            "title": "U.S. Senator, TN (Senior Senator)",
+            "primary_org": "United States Senate",
+            "location": "Nashville, TN",
+            "regulatory_stance": "Restrictive",
+            "agi_timeline": "MISSING",
+            "ai_risk_level": "Serious",
+            "threat_models": "Labor displacement, Power concentration, Democratic erosion",
+            "influence_type": "Decision-maker, Organizer/advocate",
+            "twitter": "@MarshaBlackburn",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": {
+                "status": "unverified"
+              },
+              "title": {
+                "status": "unverified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "unverified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "verified"
+              },
+              "ai_risk_level": {
+                "status": "unverified"
+              },
+              "agi_timeline": {
+                "status": "unverified"
+              },
+              "threat_models": {
+                "status": "unverified"
+              },
+              "evidence_source": {
+                "status": "verified"
+              },
+              "regulatory_stance": {
+                "status": "verified"
+              },
+              "regulatory_stance_detail": {
+                "status": "unverified"
+              }
+            },
+            "notes_snippet": "Marsha Blackburn is the senior senator for Tennessee and the first woman to represent the Volunteer State in the United States Senate. She released a discussion draft of her legislative framework to c"
+          },
+          "corrections": [
+            {
+              "id": 11,
+              "agi_timeline": "Unknown",
+              "reason": "agi_timeline is listed as 'MISSING', which is invalid. The correct value should be 'Unknown'."
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "name": "Anton Korinek",
+          "status": "no_correction_suggested",
+          "input_snapshot": {
+            "id": 12,
+            "name": "Anton Korinek",
+            "category": "Academic",
+            "title": "Professor of Economics, University of Virginia Department of Economics and Darden School of Business; Faculty Director, Economics of Transformative AI Initiative",
+            "primary_org": "University of Virginia",
+            "location": "Charlottesville, VA",
+            "regulatory_stance": "Targeted",
+            "agi_timeline": "5-10 years",
+            "ai_risk_level": "Mixed/nuanced",
+            "threat_models": "Labor displacement, Economic inequality, Power concentration",
+            "influence_type": "Researcher/analyst, Advisor/strategist, Narrator, Connector/convener",
+            "twitter": "@akorinek",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": {
+                "status": "unverified"
+              },
+              "title": {
+                "status": "verified"
+              },
+              "website": {
+                "status": "unverified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "verified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "unverified"
+              },
+              "ai_risk_level": {
+                "status": "verified"
+              },
+              "agi_timeline": {
+                "status": "unverified"
+              },
+              "threat_models": {
+                "status": "verified"
+              },
+              "evidence_source": {
+                "status": "verified"
+              },
+              "regulatory_stance": {
+                "status": "verified"
+              },
+              "regulatory_stance_detail": {
+                "status": "verified"
+              }
+            },
+            "notes_snippet": "Anton Korinek is a Professor at the University of Virginia, Department of Economics and Darden School of Business as well as the Faculty Director of the Economics of Transformative AI (EconTAI) Initia"
+          },
+          "corrections": []
+        },
+        {
+          "id": 13,
+          "name": "Daniela Amodei",
+          "status": "no_correction_suggested",
+          "input_snapshot": {
+            "id": 13,
+            "name": "Daniela Amodei",
+            "category": "Executive",
+            "title": "Co-Founder and President, Anthropic",
+            "primary_org": "Anthropic",
+            "location": "San Francisco, CA",
+            "regulatory_stance": "Targeted",
+            "agi_timeline": "Ill-defined",
+            "ai_risk_level": "Serious",
+            "threat_models": "Weapons, Cybersecurity, Misinformation",
+            "influence_type": "Decision-maker, Builder, Narrator, Advisor/strategist",
+            "twitter": "@DanielaAmodei",
+            "field_verification": {
+              "name": {
+                "status": "verified"
+              },
+              "notes": "verified",
+              "title": {
+                "status": "verified"
+              },
+              "website": {
+                "status": "verified"
+              },
+              "category": {
+                "status": "verified"
+              },
+              "location": {
+                "status": "verified"
+              },
+              "primary_org": {
+                "status": "verified"
+              },
+              "funding_model": {
+                "status": "verified"
+              },
+              "ai_risk_level": "verified",
+              "agi_timeline": "verified",
+              "threat_models": "verified",
+              "evidence_source": "verified",
+              "regulatory_stance": "verified",
+              "regulatory_stance_detail": "verified"
+            },
+            "notes_snippet": "Daniela Amodei is the president and co-founder of Anthropic, an AI safety company that develops the Claude large language model. She co-founded Anthropic in 2021 with her brother Dario Amodei and five"
+          },
+          "corrections": []
+        }
+      ],
+      "unparsed_corrections": []
+    }
+  ],
+  "token_totals": {
+    "input": 4638,
+    "output": 469
+  },
+  "estimated_cost_usd": "0.0010"
+}

@@ -2,7 +2,7 @@
 /**
  * Post-processing Step 4: Smart filter for single-occurrence entities
  *
- * Uses Exa search + Claude to classify single-occurrence entities as:
+ * Uses Exa search + OpenAI to classify single-occurrence entities as:
  * - real_entity: Verified real organization/person (keep)
  * - noise: Generic term, vague phrase, not a real entity (reject)
  * - needs_review: Ambiguous, needs human review
@@ -14,12 +14,11 @@
  *   node scripts/edge-enrichment/post-process-4-smart-filter.js --apply --all --resume
  */
 import 'dotenv/config'
-import Anthropic from '@anthropic-ai/sdk'
 import Exa from 'exa-js'
 import pg from 'pg'
 import fs from 'fs'
+import { openaiChatCompletion } from '../../lib/openai-chat.js'
 
-const anthropic = new Anthropic()
 const exa = new Exa(process.env.EXA_API_KEY)
 
 const neon = new pg.Pool({
@@ -27,7 +26,6 @@ const neon = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 })
 
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514'
 const PROGRESS_FILE = 'data/edge-enrichment/smart-filter-progress.json'
 const LOG_FILE = 'data/edge-enrichment/smart-filter.log'
 
@@ -148,13 +146,12 @@ Important guidelines:
 - When in doubt between real_entity and ai_irrelevant, prefer real_entity`
 
   try {
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 256,
+    const { text: rawText } = await openaiChatCompletion({
       messages: [{ role: 'user', content: prompt }],
+      maxTokens: 256,
     })
 
-    const text = response.content[0].text.trim()
+    const text = rawText.trim()
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
@@ -162,7 +159,7 @@ Important guidelines:
     }
     return { classification: 'needs_review', confidence: 'low', reasoning: 'Failed to parse response' }
   } catch (error) {
-    log(`  Claude error for "${name}": ${error.message}`)
+    log(`  OpenAI error for "${name}": ${error.message}`)
     return { classification: 'needs_review', confidence: 'low', reasoning: `API error: ${error.message}` }
   }
 }

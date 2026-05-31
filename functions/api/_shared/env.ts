@@ -14,11 +14,11 @@ export interface Env {
   // Admin API key
   ADMIN_KEY: string
 
-  // Anthropic API key (for LLM review + semantic search)
+  // Anthropic API key (semantic search)
   ANTHROPIC_API_KEY?: string
   ANTHROPIC_SEMANTIC_SEARCH_KEY?: string
 
-  // OpenAI API key (map voice commands via Realtime or Whisper)
+  // OpenAI API key (submission LLM review, map voice)
   OPENAI_API_KEY?: string
 
   // Voice: "realtime" (default, gpt-realtime-2) or "whisper" (whisper-1 REST)

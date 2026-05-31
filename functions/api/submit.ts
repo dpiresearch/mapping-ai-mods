@@ -15,6 +15,7 @@ import crypto from 'crypto'
 import type { Env } from './_shared/env.ts'
 import { jsonResponse, optionsResponse } from './_shared/cors.ts'
 import { getDb } from './_shared/db.ts'
+import { openaiChatCompletion } from './_shared/openai-chat.ts'
 
 const CONTRIBUTOR_KEY_REGEX = /^mak_[a-f0-9]{32}$/
 
@@ -265,8 +266,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     submissionId = insertRows[0].id as number
 
     // LLM quality review runs after response via waitUntil
-    if (env.ANTHROPIC_API_KEY && submissionId) {
+    if (env.OPENAI_API_KEY?.trim() && submissionId) {
       const sid = submissionId
+      const openaiKey = env.OPENAI_API_KEY.trim()
       context.waitUntil(
         (async () => {
           try {
@@ -283,37 +285,25 @@ Entity type: ${type}
 Data: ${JSON.stringify(reviewPayload)}
 Respond in JSON only: {"quality": 1-5, "flags": ["spam"|"low-quality"|"duplicate"|"offensive"|"incomplete"], "notes": "brief explanation"}`
 
-            const llmRes = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY!,
-                'anthropic-version': '2023-06-01',
-              },
-              body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 300,
-                messages: [{ role: 'user', content: reviewPrompt }],
-              }),
+            const { text: reviewText } = await openaiChatCompletion({
+              apiKey: openaiKey,
+              maxTokens: 300,
+              messages: [{ role: 'user', content: reviewPrompt }],
               signal: AbortSignal.timeout(5000),
             })
 
-            if (llmRes.ok) {
-              const llmData = (await llmRes.json()) as { content?: { text?: string }[] }
-              const reviewText = llmData.content?.[0]?.text ?? ''
-              let review: unknown
-              try {
-                const cleaned = reviewText
-                  .replace(/```json\s*/g, '')
-                  .replace(/```\s*/g, '')
-                  .trim()
-                review = JSON.parse(cleaned)
-              } catch {
-                review = { raw: reviewText }
-              }
-              const reviewSql = getDb(env.DATABASE_URL)
-              await reviewSql('UPDATE submission SET llm_review = $1 WHERE id = $2', [JSON.stringify(review), sid])
+            let review: unknown
+            try {
+              const cleaned = reviewText
+                .replace(/```json\s*/g, '')
+                .replace(/```\s*/g, '')
+                .trim()
+              review = JSON.parse(cleaned)
+            } catch {
+              review = { raw: reviewText }
             }
+            const reviewSql = getDb(env.DATABASE_URL)
+            await reviewSql('UPDATE submission SET llm_review = $1 WHERE id = $2', [JSON.stringify(review), sid])
           } catch (e) {
             console.warn('LLM review failed (non-critical):', e instanceof Error ? e.message : String(e))
           }
